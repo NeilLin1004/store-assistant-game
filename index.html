@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商店小幫手 - 狸克商店版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* 引入圓潤可愛的字體 */
+        @import url('https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap');
+        
+        body {
+            font-family: 'Zen Maru Gothic', sans-serif;
+            color: #5d4037;
+            background-color: #b8e9e4;
+            background-image: radial-gradient(#ffffff 20%, transparent 20%),
+                              radial-gradient(#ffffff 20%, transparent 20%);
+            background-size: 40px 40px;
+            background-position: 0 0, 20px 20px;
+            touch-action: manipulation;
+        }
+
+        /* 自定義可愛顏色 */
+        .bg-nook-green { background-color: #8dd6c3; }
+        .bg-cream { background-color: #fbf9ef; }
+        .text-brown { color: #5d4037; }
+
+        /* 硬幣樣式 */
+        .money-btn {
+            transition: all 0.1s;
+            user-select: none;
+            border-bottom: 4px solid rgba(0,0,0,0.2);
+        }
+        .money-btn:active {
+            transform: translateY(4px);
+            border-bottom: 0px solid transparent;
+        }
+
+        .coin-50 { background: #ffd700; border: 2px solid #e6c200; border-bottom: 5px solid #d4b200; color: #8a6d00; }
+        .coin-10 { background: #e0e0e0; border: 2px solid #bdbdbd; border-bottom: 5px solid #9e9e9e; color: #616161; }
+        .coin-5 { background: #ffab91; border: 2px solid #ff8a65; border-bottom: 5px solid #e64a19; color: #bf360c; }
+        .coin-1 { background: #ffe0b2; border: 2px solid #ffcc80; border-bottom: 5px solid #fb8c00; color: #e65100; }
+
+        /* 動畫 */
+        .leaf-spin { animation: spin-leaf 3s ease-in-out infinite; }
+        @keyframes spin-leaf {
+            0% { transform: rotate(0deg); }
+            25% { transform: rotate(10deg); }
+            75% { transform: rotate(-10deg); }
+            100% { transform: rotate(0deg); }
+        }
+
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+            100% { transform: translateX(0); }
+        }
+        .shake { animation: shake 0.4s ease-in-out; }
+
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); }
+        }
+        .pop { animation: pop 0.2s ease-out; }
+
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 模態視窗樣式 */
+        .modal-overlay {
+            background-color: rgba(93, 64, 55, 0.6);
+            backdrop-filter: blur(4px);
+        }
+        
+        /* 捲軸美化 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #8dd6c3; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4db6ac; }
+    </style>
+</head>
+<body class="h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- 遊戲主容器 -->
+    <div class="w-full max-w-md bg-cream rounded-[40px] shadow-[0_10px_30px_rgba(0,0,0,0.1)] overflow-hidden flex flex-col h-full max-h-[850px] border-8 border-white box-border ring-4 ring-[#8dd6c3]/30 relative">
+        
+        <!-- 頂部資訊列 -->
+        <div class="bg-nook-green p-4 flex justify-between items-center text-white relative overflow-hidden z-10 shadow-sm">
+            <div class="absolute -top-4 -left-4 w-20 h-20 bg-white/20 rounded-full"></div>
+            
+            <!-- 時間顯示 -->
+            <div class="flex items-center gap-2 bg-white/20 px-3 py-1 rounded-full border border-white/30">
+                <i class="fas fa-stopwatch text-white animate-pulse"></i>
+                <span id="timerDisplay" class="font-black text-xl w-8 text-center">60</span>
+            </div>
+
+            <h1 class="text-xl font-black flex items-center gap-2 tracking-widest text-[#00695c]">
+                商店小幫手
+            </h1>
+            
+            <!-- 分數顯示 -->
+            <div class="bg-white/90 px-3 py-1 rounded-full font-bold text-[#00695c] shadow-sm flex items-center gap-2">
+                <i class="fas fa-coins text-yellow-500"></i>
+                <span id="scoreDisplay">0</span>
+            </div>
+        </div>
+
+        <!-- 遊戲區域 -->
+        <div class="flex-1 flex flex-col p-6 overflow-y-auto relative bg-cream">
+            
+            <!-- 提示氣泡 -->
+            <div class="bg-white rounded-2xl p-3 shadow-sm mb-2 text-center border-2 border-[#8dd6c3] border-dashed">
+                <p id="messageDisplay" class="font-bold text-lg text-[#00695c]">
+                    準備好了嗎？
+                </p>
+            </div>
+
+            <!-- 題目卡片 -->
+            <div class="bg-[#fff9c4] p-5 rounded-[30px] shadow-sm rotate-1 mt-2 border-2 border-[#fff59d] fade-in relative transition-all" id="questionCard">
+                <div class="absolute -top-3 left-1/2 -translate-x-1/2 w-20 h-5 bg-[#81d4fa]/60 rotate-2"></div>
+
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div class="bg-white/60 p-2 rounded-xl border border-[#fff176]">
+                        <div class="text-[#f57f17] text-xs font-bold">商品價格</div>
+                        <div class="text-xl font-black text-[#f57f17]">$<span id="priceDisplay">0</span></div>
+                    </div>
+                    <div class="bg-white/60 p-2 rounded-xl border border-[#fff176]">
+                        <div class="text-[#0277bd] text-xs font-bold">客人支付</div>
+                        <div class="text-xl font-black text-[#0277bd]">$<span id="paidDisplay">0</span></div>
+                    </div>
+                </div>
+                
+                <div class="border-t-2 border-dashed border-[#fbc02d]/30 my-2"></div>
+                
+                <div class="text-center">
+                    <div class="text-[#5d4037]/70 font-bold text-xs mb-1">總共要找</div>
+                    <div class="text-4xl font-black text-[#2e7d32] tracking-wider">$<span id="targetDisplay">0</span></div>
+                </div>
+            </div>
+
+            <!-- 收銀盤區域 -->
+            <div class="mt-auto mb-2">
+                <div class="bg-[#5d4037] text-[#fff8e1] p-3 rounded-t-3xl shadow-inner flex justify-between items-center transition-all border-b-4 border-[#3e2723]" id="currentArea">
+                    <div class="text-[#d7ccc8] text-sm font-bold">收銀盤:</div>
+                    <div class="text-2xl font-mono text-[#ffecb3] tracking-wider font-black">$<span id="currentGivenDisplay">0</span></div>
+                </div>
+                
+                <div class="bg-[#6d4c41] rounded-b-3xl p-3 min-h-[70px] shadow-lg flex flex-wrap justify-center gap-2 content-start border-t border-[#8d6e63]">
+                     <div id="coinStack" class="flex flex-wrap justify-center gap-1 w-full"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部控制區 -->
+        <div class="bg-white/80 border-t-2 border-[#e0f2f1] p-4 pb-6 backdrop-blur-sm z-10">
+            <div class="grid grid-cols-4 gap-2 mb-3">
+                <button onclick="addMoney(50)" class="money-btn coin-50 w-full aspect-square rounded-full flex flex-col items-center justify-center shadow-md active:shadow-none">
+                    <span class="text-[10px] opacity-80">金</span>
+                    <span class="text-xl font-black">50</span>
+                </button>
+                <button onclick="addMoney(10)" class="money-btn coin-10 w-full aspect-square rounded-full flex flex-col items-center justify-center shadow-md active:shadow-none">
+                    <span class="text-[10px] opacity-80">銀</span>
+                    <span class="text-xl font-black">10</span>
+                </button>
+                <button onclick="addMoney(5)" class="money-btn coin-5 w-full aspect-square rounded-full flex flex-col items-center justify-center shadow-md active:shadow-none">
+                    <span class="text-[10px] opacity-80">銅</span>
+                    <span class="text-xl font-black">5</span>
+                </button>
+                <button onclick="addMoney(1)" class="money-btn coin-1 w-full aspect-square rounded-full flex flex-col items-center justify-center shadow-md active:shadow-none">
+                    <span class="text-[10px] opacity-80">小</span>
+                    <span class="text-xl font-black">1</span>
+                </button>
+            </div>
+            <button onclick="clearMoney()" class="w-full bg-[#ffcdd2] hover:bg-[#ef9a9a] text-[#c62828] font-bold py-2 rounded-2xl transition border-b-4 border-[#e57373] active:border-b-0 active:translate-y-1 flex items-center justify-center gap-2">
+                <i class="fas fa-eraser"></i> 算錯了，重來！
+            </button>
+        </div>
+
+        <!-- 開始畫面遮罩 -->
+        <div id="startScreen" class="absolute inset-0 bg-[#b8e9e4] z-50 flex flex-col items-center justify-center p-6 text-center">
+            <div class="bg-white p-8 rounded-[40px] shadow-xl border-4 border-white ring-4 ring-[#8dd6c3] max-w-sm w-full transform rotate-1">
+                <div class="text-6xl mb-4 animate-bounce">🦝</div>
+                <h2 class="text-3xl font-black text-[#00695c] mb-2">商店小幫手</h2>
+                <p class="text-[#5d4037] mb-6 font-bold">限時 60 秒！<br>來挑戰你的收銀速度吧！</p>
+                
+                <button onclick="startGame()" class="w-full bg-[#ffb74d] hover:bg-[#ffa726] text-white text-xl font-black py-4 rounded-full shadow-lg border-b-4 border-[#f57c00] active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center gap-2">
+                    <i class="fas fa-play"></i> 開始營業
+                </button>
+                
+                <button onclick="showLeaderboard()" class="mt-4 text-[#00695c] font-bold underline hover:text-[#004d40]">
+                    查看本週排行榜
+                </button>
+            </div>
+        </div>
+
+        <!-- 結算/排行榜 模態視窗 -->
+        <div id="resultModal" class="hidden absolute inset-0 modal-overlay z-50 flex flex-col items-center justify-center p-4">
+            <div class="bg-[#fbf9ef] w-full max-w-sm rounded-[30px] shadow-2xl overflow-hidden border-4 border-white flex flex-col max-h-[90%]">
+                <!-- 標題 -->
+                <div class="bg-[#8dd6c3] p-4 text-center">
+                    <h2 class="text-2xl font-black text-white" id="modalTitle">本週排行榜</h2>
+                    <p class="text-white/80 text-xs font-bold mt-1">每週一 04:00 重置</p>
+                </div>
+                
+                <!-- 內容區 -->
+                <div class="p-6 overflow-y-auto flex-1">
+                    <!-- 你的分數 (遊戲結束時顯示) -->
+                    <div id="yourScoreSection" class="hidden mb-6 text-center bg-white p-4 rounded-2xl border-2 border-[#fff176] shadow-sm">
+                        <div class="text-sm text-gray-500 font-bold">本次得分</div>
+                        <div class="text-5xl font-black text-[#f57f17] my-2" id="finalScoreDisplay">0</div>
+                        
+                        <!-- 輸入名字 -->
+                        <div class="mt-4" id="inputNameSection">
+                            <input type="text" id="playerNameInput" placeholder="請輸入暱稱" maxlength="8" 
+                                class="w-full bg-gray-100 border-2 border-gray-300 rounded-xl px-4 py-2 text-center font-bold focus:outline-none focus:border-[#8dd6c3] text-[#5d4037]">
+                            <button onclick="submitScore()" id="submitBtn" class="mt-2 w-full bg-[#8dd6c3] text-white font-bold py-2 rounded-xl shadow-sm border-b-4 border-[#4db6ac] active:border-b-0 active:translate-y-1">
+                                登記分數
+                            </button>
+                        </div>
+                        <div id="scoreSubmittedMsg" class="hidden text-green-600 font-bold mt-2">
+                            <i class="fas fa-check"></i> 已登記！
+                        </div>
+                    </div>
+
+                    <!-- 排行榜列表 -->
+                    <div class="bg-white rounded-2xl border-2 border-[#e0e0e0] overflow-hidden">
+                        <table class="w-full text-left">
+                            <thead class="bg-[#eeeeee] text-[#757575] text-xs uppercase">
+                                <tr>
+                                    <th class="px-4 py-2 font-bold text-center w-12">#</th>
+                                    <th class="px-4 py-2 font-bold">店員</th>
+                                    <th class="px-4 py-2 font-bold text-right">分</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leaderboardBody" class="text-sm font-bold text-[#5d4037]">
+                                <!-- 動態生成 -->
+                                <tr><td colspan="3" class="text-center py-4">載入中...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 底部按鈕 -->
+                <div class="p-4 bg-gray-50 border-t border-gray-200 flex gap-2">
+                    <button onclick="closeModal()" class="flex-1 bg-gray-300 hover:bg-gray-400 text-white font-bold py-3 rounded-xl transition">
+                        關閉
+                    </button>
+                    <button onclick="restartGame()" class="flex-1 bg-[#ffb74d] hover:bg-[#ffa726] text-white font-bold py-3 rounded-xl shadow-sm border-b-4 border-[#f57c00] active:border-b-0 active:translate-y-1 transition" id="restartBtn">
+                        再玩一次
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, serverTimestamp, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // 全域變數供 HTML onclick 使用
+        window.startGame = startGame;
+        window.addMoney = addMoney;
+        window.clearMoney = clearMoney;
+        window.showLeaderboard = showLeaderboard;
+        window.submitScore = submitScore;
+        window.closeModal = closeModal;
+        window.restartGame = restartGame;
+
+        // --- Firebase 設定 ---
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // --- Auth 初始化邏輯 (修正版) ---
+        let currentUser = null;
+
+        // 監聽狀態改變
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUser = user;
+                console.log("Auth State: Signed in", user.uid);
+            } else {
+                currentUser = null;
+                console.log("Auth State: Signed out");
+            }
+        });
+
+        // 執行登入
+        async function initAuth() {
+            try {
+                // 優先使用自定義 Token (必須)
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    // 若無 Token 才使用匿名登入
+                    await signInAnonymously(auth);
+                }
+            } catch (error) {
+                console.error("Auth initialization failed:", error);
+                // 嘗試 Fallback
+                try {
+                     if (!auth.currentUser) await signInAnonymously(auth);
+                } catch (e) {
+                    console.error("Fallback auth failed:", e);
+                }
+            }
+        }
+        
+        // 立即啟動驗證
+        initAuth();
+
+        // --- 遊戲邏輯變數 ---
+        let gameState = {
+            score: 0,
+            price: 0,
+            paid: 0,
+            targetChange: 0,
+            currentGiven: 0,
+            isProcessing: false,
+            isPlaying: false,
+            timeLeft: 60,
+            timerInterval: null
+        };
+
+        // DOM 元素
+        const els = {
+            score: document.getElementById('scoreDisplay'),
+            timer: document.getElementById('timerDisplay'),
+            price: document.getElementById('priceDisplay'),
+            paid: document.getElementById('paidDisplay'),
+            target: document.getElementById('targetDisplay'),
+            given: document.getElementById('currentGivenDisplay'),
+            message: document.getElementById('messageDisplay'),
+            area: document.getElementById('currentArea'),
+            stack: document.getElementById('coinStack'),
+            startScreen: document.getElementById('startScreen'),
+            resultModal: document.getElementById('resultModal'),
+            modalTitle: document.getElementById('modalTitle'),
+            yourScoreSec: document.getElementById('yourScoreSection'),
+            finalScore: document.getElementById('finalScoreDisplay'),
+            lbBody: document.getElementById('leaderboardBody'),
+            inputSec: document.getElementById('inputNameSection'),
+            submitMsg: document.getElementById('scoreSubmittedMsg'),
+            nameInput: document.getElementById('playerNameInput'),
+            restartBtn: document.getElementById('restartBtn')
+        };
+
+        // --- 輔助函式：取得每週一 04:00 重置的 Collection 名稱 ---
+        function getWeeklyCollectionName() {
+            const now = new Date();
+            // 邏輯：將現在時間減去 4 小時。
+            // 這樣如果是週一 03:59，會變成週一 -1小時 (週日)，歸入上週。
+            // 如果是週一 04:01，會變成週一 00:01，歸入本週。
+            const adjusted = new Date(now.getTime() - 4 * 60 * 60 * 1000);
+            
+            // 取得該日期所屬週的星期一
+            const day = adjusted.getDay(); // 0 是週日
+            // 讓週一(1)變為基準。diff 是要減去幾天才能回到這週一
+            // 如果 day=1 (Mon), diff=0. 如果 day=0 (Sun), diff=-6. day=2 (Tue), diff=1
+            const diff = adjusted.getDate() - day + (day === 0 ? -6 : 1);
+            const monday = new Date(adjusted.setDate(diff));
+            
+            const yyyy = monday.getFullYear();
+            const mm = String(monday.getMonth() + 1).padStart(2, '0');
+            const dd = String(monday.getDate()).padStart(2, '0');
+            
+            return `scores_${yyyy}_${mm}_${dd}`;
+        }
+
+        // --- 遊戲流程 ---
+
+        function startGame() {
+            els.startScreen.classList.add('hidden');
+            gameState.score = 0;
+            gameState.timeLeft = 60;
+            gameState.isPlaying = true;
+            gameState.isProcessing = false;
+            
+            updateUI();
+            initQuestion();
+            
+            // 啟動計時器
+            if (gameState.timerInterval) clearInterval(gameState.timerInterval);
+            gameState.timerInterval = setInterval(() => {
+                if (!gameState.isPlaying) return;
+                
+                gameState.timeLeft--;
+                els.timer.textContent = gameState.timeLeft;
+                
+                if (gameState.timeLeft <= 10) {
+                    els.timer.parentElement.classList.add('bg-red-500', 'animate-pulse');
+                    els.timer.parentElement.classList.remove('bg-white/20');
+                }
+
+                if (gameState.timeLeft <= 0) {
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        function endGame() {
+            gameState.isPlaying = false;
+            clearInterval(gameState.timerInterval);
+            
+            // 顯示結算畫面
+            els.resultModal.classList.remove('hidden');
+            els.modalTitle.textContent = "時間到！";
+            els.yourScoreSec.classList.remove('hidden');
+            els.finalScore.textContent = gameState.score;
+            els.inputSec.classList.remove('hidden');
+            els.submitMsg.classList.add('hidden');
+            els.restartBtn.textContent = "再玩一次";
+
+            // 讀取排行榜
+            loadLeaderboard();
+        }
+
+        function restartGame() {
+            closeModal();
+            startGame();
+            // 重置計時器樣式
+            els.timer.parentElement.classList.remove('bg-red-500', 'animate-pulse');
+            els.timer.parentElement.classList.add('bg-white/20');
+        }
+
+        function initQuestion() {
+            // 隨機出題
+            gameState.price = Math.floor(Math.random() * 80) + 11;
+            if (gameState.price <= 50) gameState.paid = 50;
+            else gameState.paid = 100;
+
+            gameState.targetChange = gameState.paid - gameState.price;
+            gameState.currentGiven = 0;
+            gameState.isProcessing = false;
+
+            updateGameDisplay();
+            
+            // 重置視覺
+            els.stack.innerHTML = '';
+            els.message.innerHTML = '請找零給客人！';
+            els.message.className = "font-bold text-lg text-[#00695c]";
+            els.area.className = "bg-[#5d4037] text-[#fff8e1] p-3 rounded-t-3xl shadow-inner flex justify-between items-center transition-all border-b-4 border-[#3e2723]";
+        }
+
+        function updateUI() {
+            els.score.textContent = gameState.score;
+            els.timer.textContent = gameState.timeLeft;
+        }
+
+        function updateGameDisplay() {
+            els.price.textContent = gameState.price;
+            els.paid.textContent = gameState.paid;
+            els.target.textContent = gameState.targetChange;
+            els.given.textContent = gameState.currentGiven;
+        }
+
+        function addMoney(amount) {
+            if (!gameState.isPlaying || gameState.isProcessing) return;
+
+            gameState.currentGiven += amount;
+            
+            // 視覺硬幣
+            const coin = document.createElement('div');
+            let colorClass = '';
+            if (amount === 50) colorClass = 'bg-[#ffd700] text-[#8a6d00] border-[#e6c200]';
+            else if (amount === 10) colorClass = 'bg-[#e0e0e0] text-[#616161] border-[#bdbdbd]';
+            else if (amount === 5) colorClass = 'bg-[#ffab91] text-[#bf360c] border-[#ff8a65]';
+            else colorClass = 'bg-[#ffe0b2] text-[#e65100] border-[#ffcc80]';
+            
+            const rotate = Math.floor(Math.random() * 30) - 15;
+            coin.className = `${colorClass} w-8 h-8 rounded-full border-2 flex items-center justify-center text-[10px] font-black shadow-sm fade-in transform`;
+            coin.style.transform = `rotate(${rotate}deg)`;
+            coin.textContent = amount;
+            els.stack.appendChild(coin);
+
+            // 動畫
+            els.area.classList.add('pop');
+            setTimeout(() => els.area.classList.remove('pop'), 200);
+
+            updateGameDisplay();
+            checkStatus();
+        }
+
+        function clearMoney() {
+            if (!gameState.isPlaying || gameState.isProcessing) return;
+            gameState.currentGiven = 0;
+            els.stack.innerHTML = '';
+            els.message.textContent = "已清空";
+            els.area.className = "bg-[#5d4037] text-[#fff8e1] p-3 rounded-t-3xl shadow-inner flex justify-between items-center transition-all border-b-4 border-[#3e2723]";
+            updateGameDisplay();
+        }
+
+        function checkStatus() {
+            if (gameState.currentGiven === gameState.targetChange) {
+                // 正確
+                gameState.isProcessing = true;
+                gameState.score += 10;
+                updateUI();
+                
+                els.message.innerHTML = '收銀正確！ <i class="fas fa-check"></i>';
+                els.message.className = "font-bold text-lg text-[#2e7d32]";
+                els.area.className = "bg-[#2e7d32] text-white p-3 rounded-t-3xl shadow-inner flex justify-between items-center transition-all border-b-4 border-[#1b5e20] pop";
+
+                setTimeout(initQuestion, 1000);
+
+            } else if (gameState.currentGiven > gameState.targetChange) {
+                // 錯誤
+                els.message.innerHTML = '找太多了！ <i class="fas fa-times"></i>';
+                els.message.className = "font-bold text-lg text-[#c62828]";
+                els.area.className = "bg-[#c62828] text-white p-3 rounded-t-3xl shadow-inner flex justify-between items-center transition-all border-b-4 border-[#b71c1c] shake";
+                
+                setTimeout(clearMoney, 1000);
+            }
+        }
+
+        // --- 排行榜功能 ---
+
+        function showLeaderboard() {
+            els.resultModal.classList.remove('hidden');
+            els.modalTitle.textContent = "本週英雄榜";
+            els.yourScoreSec.classList.add('hidden'); // 僅查看時不顯示輸入框
+            els.restartBtn.textContent = "關閉"; // 僅查看時按鈕改名
+            loadLeaderboard();
+        }
+
+        function closeModal() {
+            els.resultModal.classList.add('hidden');
+        }
+
+        async function submitScore() {
+            const name = els.nameInput.value.trim() || "無名氏";
+            const score = gameState.score;
+            
+            if (!currentUser) {
+                alert("連線中，請稍後再試...");
+                return;
+            }
+
+            const collName = getWeeklyCollectionName();
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.textContent = "儲存中...";
+
+            try {
+                // 寫入 Firestore: public data
+                // 路徑: artifacts/{appId}/public/data/{collectionName}
+                const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', collName);
+                
+                await addDoc(scoresRef, {
+                    name: name,
+                    score: score,
+                    uid: currentUser.uid,
+                    timestamp: serverTimestamp()
+                });
+
+                els.inputSec.classList.add('hidden');
+                els.submitMsg.classList.remove('hidden');
+                
+                // 重新讀取排行榜
+                loadLeaderboard();
+
+            } catch (e) {
+                console.error("Error adding score: ", e);
+                alert("上傳失敗，請檢查網路或稍後再試");
+                btn.disabled = false;
+                btn.textContent = "登記分數";
+            }
+        }
+
+        async function loadLeaderboard() {
+            // 檢查 Auth
+            if (!auth.currentUser) {
+                els.lbBody.innerHTML = '<tr><td colspan="3" class="text-center py-4">連線中...請稍後</td></tr>';
+                // 簡單的重試機制或等待 auth state change (這裡僅做 UI 提示，實際依賴 initAuth 完成)
+                return;
+            }
+
+            els.lbBody.innerHTML = '<tr><td colspan="3" class="text-center py-4">讀取中...</td></tr>';
+            
+            const collName = getWeeklyCollectionName();
+            const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', collName);
+            
+            try {
+                // 取得資料
+                const querySnapshot = await getDocs(scoresRef);
+                
+                let scores = [];
+                querySnapshot.forEach((doc) => {
+                    scores.push(doc.data());
+                });
+
+                // 前端排序 (分數高 -> 低)
+                scores.sort((a, b) => b.score - a.score);
+                
+                // 取前 10 名
+                const top10 = scores.slice(0, 10);
+
+                renderLeaderboard(top10);
+
+            } catch (e) {
+                console.error("Error loading leaderboard: ", e);
+                els.lbBody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-red-500">無法讀取排行榜</td></tr>';
+            }
+        }
+
+        function renderLeaderboard(scores) {
+            els.lbBody.innerHTML = '';
+            
+            if (scores.length === 0) {
+                els.lbBody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-gray-400">本週還沒有人挑戰喔！</td></tr>';
+                return;
+            }
+
+            scores.forEach((s, index) => {
+                const rank = index + 1;
+                let rankClass = "text-gray-500";
+                let icon = "";
+                
+                if (rank === 1) { rankClass = "text-yellow-500 text-lg"; icon = "👑 "; }
+                else if (rank === 2) { rankClass = "text-gray-400 text-lg"; icon = "🥈 "; }
+                else if (rank === 3) { rankClass = "text-orange-400 text-lg"; icon = "🥉 "; }
+
+                const row = document.createElement('tr');
+                row.className = "border-b border-gray-100 hover:bg-gray-50";
+                row.innerHTML = `
+                    <td class="px-4 py-3 font-black text-center ${rankClass}">${icon}${rank}</td>
+                    <td class="px-4 py-3 truncate max-w-[100px]">${escapeHtml(s.name)}</td>
+                    <td class="px-4 py-3 font-black text-right text-[#00695c]">${s.score}</td>
+                `;
+                els.lbBody.appendChild(row);
+            });
+        }
+
+        function escapeHtml(text) {
+            if (!text) return text;
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
