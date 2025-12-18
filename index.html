@@ -195,7 +195,7 @@
                 </button>
                 
                 <button onclick="showLeaderboard()" class="mt-4 text-[#00695c] font-bold underline hover:text-[#004d40]">
-                    查看本週排行榜
+                    查看本週排行榜 (本機)
                 </button>
             </div>
         </div>
@@ -261,12 +261,9 @@
 
     </div>
 
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, getDocs, serverTimestamp, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
+    <!-- 注意：這裡已經移除 Firebase 依賴，改用 LocalStorage (本機儲存) -->
+    <!-- 這樣上傳到 GitHub Pages 就不會因為找不到資料庫配置而卡住 -->
+    <script>
         // 全域變數供 HTML onclick 使用
         window.startGame = startGame;
         window.addMoney = addMoney;
@@ -275,52 +272,6 @@
         window.submitScore = submitScore;
         window.closeModal = closeModal;
         window.restartGame = restartGame;
-
-        // --- Firebase 設定 ---
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        // --- Auth 初始化邏輯 (修正版) ---
-        let currentUser = null;
-
-        // 監聽狀態改變
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                currentUser = user;
-                console.log("Auth State: Signed in", user.uid);
-            } else {
-                currentUser = null;
-                console.log("Auth State: Signed out");
-            }
-        });
-
-        // 執行登入
-        async function initAuth() {
-            try {
-                // 優先使用自定義 Token (必須)
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    // 若無 Token 才使用匿名登入
-                    await signInAnonymously(auth);
-                }
-            } catch (error) {
-                console.error("Auth initialization failed:", error);
-                // 嘗試 Fallback
-                try {
-                     if (!auth.currentUser) await signInAnonymously(auth);
-                } catch (e) {
-                    console.error("Fallback auth failed:", e);
-                }
-            }
-        }
-        
-        // 立即啟動驗證
-        initAuth();
 
         // --- 遊戲邏輯變數 ---
         let gameState = {
@@ -358,18 +309,14 @@
             restartBtn: document.getElementById('restartBtn')
         };
 
-        // --- 輔助函式：取得每週一 04:00 重置的 Collection 名稱 ---
-        function getWeeklyCollectionName() {
+        // --- 輔助函式：取得每週一 04:00 重置的 Key 名稱 ---
+        function getWeeklyStorageKey() {
             const now = new Date();
             // 邏輯：將現在時間減去 4 小時。
-            // 這樣如果是週一 03:59，會變成週一 -1小時 (週日)，歸入上週。
-            // 如果是週一 04:01，會變成週一 00:01，歸入本週。
             const adjusted = new Date(now.getTime() - 4 * 60 * 60 * 1000);
             
             // 取得該日期所屬週的星期一
             const day = adjusted.getDay(); // 0 是週日
-            // 讓週一(1)變為基準。diff 是要減去幾天才能回到這週一
-            // 如果 day=1 (Mon), diff=0. 如果 day=0 (Sun), diff=-6. day=2 (Tue), diff=1
             const diff = adjusted.getDate() - day + (day === 0 ? -6 : 1);
             const monday = new Date(adjusted.setDate(diff));
             
@@ -377,7 +324,7 @@
             const mm = String(monday.getMonth() + 1).padStart(2, '0');
             const dd = String(monday.getDate()).padStart(2, '0');
             
-            return `scores_${yyyy}_${mm}_${dd}`;
+            return `store_game_scores_${yyyy}_${mm}_${dd}`;
         }
 
         // --- 遊戲流程 ---
@@ -526,11 +473,11 @@
             }
         }
 
-        // --- 排行榜功能 ---
+        // --- 排行榜功能 (改為 LocalStorage 版) ---
 
         function showLeaderboard() {
             els.resultModal.classList.remove('hidden');
-            els.modalTitle.textContent = "本週英雄榜";
+            els.modalTitle.textContent = "本週英雄榜 (本機)";
             els.yourScoreSec.classList.add('hidden'); // 僅查看時不顯示輸入框
             els.restartBtn.textContent = "關閉"; // 僅查看時按鈕改名
             loadLeaderboard();
@@ -540,31 +487,30 @@
             els.resultModal.classList.add('hidden');
         }
 
-        async function submitScore() {
+        function submitScore() {
             const name = els.nameInput.value.trim() || "無名氏";
             const score = gameState.score;
             
-            if (!currentUser) {
-                alert("連線中，請稍後再試...");
-                return;
-            }
-
-            const collName = getWeeklyCollectionName();
             const btn = document.getElementById('submitBtn');
             btn.disabled = true;
             btn.textContent = "儲存中...";
 
             try {
-                // 寫入 Firestore: public data
-                // 路徑: artifacts/{appId}/public/data/{collectionName}
-                const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', collName);
+                // 使用 LocalStorage 儲存
+                const key = getWeeklyStorageKey();
+                let scores = JSON.parse(localStorage.getItem(key) || "[]");
                 
-                await addDoc(scoresRef, {
+                scores.push({
                     name: name,
                     score: score,
-                    uid: currentUser.uid,
-                    timestamp: serverTimestamp()
+                    timestamp: new Date().toISOString()
                 });
+                
+                // 排序並只保留前 20 名
+                scores.sort((a, b) => b.score - a.score);
+                scores = scores.slice(0, 20);
+                
+                localStorage.setItem(key, JSON.stringify(scores));
 
                 els.inputSec.classList.add('hidden');
                 els.submitMsg.classList.remove('hidden');
@@ -574,37 +520,20 @@
 
             } catch (e) {
                 console.error("Error adding score: ", e);
-                alert("上傳失敗，請檢查網路或稍後再試");
+                alert("儲存失敗，可能是瀏覽器限制");
+            } finally {
                 btn.disabled = false;
                 btn.textContent = "登記分數";
             }
         }
 
-        async function loadLeaderboard() {
-            // 檢查 Auth
-            if (!auth.currentUser) {
-                els.lbBody.innerHTML = '<tr><td colspan="3" class="text-center py-4">連線中...請稍後</td></tr>';
-                // 簡單的重試機制或等待 auth state change (這裡僅做 UI 提示，實際依賴 initAuth 完成)
-                return;
-            }
-
+        function loadLeaderboard() {
             els.lbBody.innerHTML = '<tr><td colspan="3" class="text-center py-4">讀取中...</td></tr>';
             
-            const collName = getWeeklyCollectionName();
-            const scoresRef = collection(db, 'artifacts', appId, 'public', 'data', collName);
-            
             try {
-                // 取得資料
-                const querySnapshot = await getDocs(scoresRef);
-                
-                let scores = [];
-                querySnapshot.forEach((doc) => {
-                    scores.push(doc.data());
-                });
+                const key = getWeeklyStorageKey();
+                let scores = JSON.parse(localStorage.getItem(key) || "[]");
 
-                // 前端排序 (分數高 -> 低)
-                scores.sort((a, b) => b.score - a.score);
-                
                 // 取前 10 名
                 const top10 = scores.slice(0, 10);
 
